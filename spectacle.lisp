@@ -15,7 +15,7 @@
    (transformed-image :accessor transformed-image :initarg :transformed-image)
    (image-pattern :accessor image-pattern :initarg :image-pattern))
   (:default-initargs :value nil
-    :transform-parameters (list 1d0 1d0 0d0 0d0 0d0 0d0 0d0)
+    :transform-parameters #(1d0 1d0 0d0 0d0 0d0 0d0 0d0)
     :transform nil
     :transformed-image nil
     :image-pattern nil))
@@ -296,7 +296,7 @@
     (when image
       (unless transform
         (destructuring-bind (y-scale x-scale y-shift x-shift y-shear x-shear rotate)
-            transform-parameters
+            (coerce transform-parameters 'list)
           (setf transform
                 (make-affine-transformation :y-scale y-scale
                                             :x-scale x-scale
@@ -368,8 +368,8 @@
                                         (list (/ bounding-rectangle-width oldx))))))
               (setf (gadget-value y-scale-slider) scale
                     (gadget-value x-scale-slider) scale)
-              (setf (first transform-parameters) scale
-                    (second transform-parameters) scale
+              (setf (elt transform-parameters 0) scale
+                    (elt transform-parameters 1) scale
                     transform nil)))
           (setf image image))))))
 
