@@ -185,11 +185,13 @@
               (4/5 (horizontally ()
                      (4/5 viewer)
                      (1/5 (vertically ()
-                            lock-scale
-                            (labelling (:label "Y Scale")
-                              y-scale)
-                            (labelling (:label "X Scale")
-                              x-scale)
+                            (labelling ()
+                              (vertically ()
+                                lock-scale
+                                (labelling (:label "Y Scale")
+                                  y-scale)
+                                (labelling (:label "X Scale")
+                                  x-scale)))
                             (labelling (:label "Theta")
                               theta)
                             (labelling (:label "Y Shear")
@@ -372,7 +374,8 @@
       (reset-transform-parameters transform-parameters)
       (setf transform nil
             pattern nil
-            image img))))
+            image img)
+      (zoom))))
 
 (define-spectacle-command (zoom :name t :menu t)
     ()
