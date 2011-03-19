@@ -115,6 +115,53 @@
                               theta)))))
               (1/5 interactor)))))
 
+(defun opticl-image-to-climi-rgb-pattern (image)
+  (typecase image
+    (8-bit-rgb-image
+     (locally (declare (optimize (speed 3))
+                       (type 8-bit-rgb-image image))
+       (with-image-bounds (y x) image
+         (let ((cimg (make-32-bit-gray-image y x)))
+           (declare (type 32-bit-gray-image cimg))
+           (set-pixels (i j) cimg
+             (multiple-value-bind (r g b)
+                 (pixel image i j)
+               (+ (ash r 0) (ash g 8) (ash b 16))))
+           (make-instance 'clim-internals::rgb-pattern
+                          :image (make-instance 'clim-internals::rgb-image
+                                                :height y
+                                                :width x
+                                                :data cimg))))))
+    (8-bit-rgba-image
+     (locally (declare (optimize (speed 3))
+                       (type 8-bit-rgba-image image))
+       (with-image-bounds (y x) image
+         (let ((cimg (make-32-bit-gray-image y x)))
+           (declare (type 32-bit-gray-image cimg))
+           (set-pixels (i j) cimg
+             (multiple-value-bind (r g b)
+                 (pixel image i j)
+               (+ (ash r 0) (ash g 8) (ash b 16))))
+           (make-instance 'clim-internals::rgb-pattern
+                          :image (make-instance 'clim-internals::rgb-image
+                                                :height y
+                                                :width x
+                                                :data cimg))))))
+    (8-bit-gray-image
+     (locally (declare (optimize (speed 3))
+                       (type 8-bit-gray-image image))
+       (with-image-bounds (y x) image
+         (let ((cimg (make-32-bit-gray-image y x)))
+           (declare (type 32-bit-gray-image cimg))
+           (set-pixels (i j) cimg
+             (let ((k (pixel image i j)))
+               (+ (ash k 0) (ash k 8) (ash k 16))))
+           (make-instance 'clim-internals::rgb-pattern
+                          :image (make-instance 'clim-internals::rgb-image
+                                                :height y
+                                                :width x
+                                                :data cimg))))))))
+
 (defmethod handle-repaint ((pane spectacle-pane) region)
   (declare (ignore region))
   (with-bounding-rectangle* (x1 y1 x2 y2) (sheet-region pane)
@@ -142,7 +189,7 @@
         (setf transformed-image (if transform
                                     (transform-image image transform)
                                     image))
-        (setf pattern (rgb-image-to-climi-rgb-pattern transformed-image)))
+        (setf pattern (opticl-image-to-climi-rgb-pattern transformed-image)))
       (with-image-bounds (image-height image-width) transformed-image
         (change-space-requirements pane :height image-height :width image-width)
         (let ((bounding-rectangle-height (bounding-rectangle-height pane))
@@ -159,22 +206,6 @@
     (if new-process
         (clim-sys:make-process #'run :name "Spectacle")
         (run))))
-
-(defun rgb-image-to-climi-rgb-pattern (image)
-  (declare (optimize (speed 3))
-           (type 8-bit-rgb-image image))
-  (with-image-bounds (y x) image
-    (let ((cimg (make-32-bit-gray-image y x)))
-      (declare (type 32-bit-gray-image cimg))
-      (set-pixels (i j) cimg
-        (multiple-value-bind (r g b)
-            (pixel image i j)
-          (+ (ash r 0) (ash g 8) (ash b 16))))
-      (make-instance 'clim-internals::rgb-pattern
-                     :image (make-instance 'clim-internals::rgb-image
-                                           :height y
-                                           :width x
-                                           :data cimg)))))
 
 (define-spectacle-command (com-quit :name t :menu t :keystroke (#\q :meta)) ()
   (frame-exit *application-frame*))
