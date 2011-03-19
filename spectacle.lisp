@@ -111,7 +111,7 @@
 
 (define-application-frame spectacle ()
   ()
-  (:menu-bar t)
+  (:menu-bar menubar-command-table)
   (:panes
    (viewer (make-pane 'spectacle-pane
                       :background +black+
@@ -167,7 +167,7 @@
                  :label "Reset Parameters"
                  :activate-callback (lambda (gadget)
                                       (declare (ignore gadget))
-                                      (reset-it)))
+                                      (com-reset)))
    (x-shear :slider
             :min-value -5
             :max-value 5
@@ -356,10 +356,7 @@
         (clim-sys:make-process #'run :name "Spectacle")
         (run))))
 
-(define-spectacle-command (com-quit :name t :menu t :keystroke (#\q :meta)) ()
-  (frame-exit *application-frame*))
-
-(define-spectacle-command (com-load-image :name t :menu t)
+(define-spectacle-command (com-load-image :name t)
     ((image-pathname 'pathname
                      :default (user-homedir-pathname)
                      :insert-default t))
@@ -375,9 +372,9 @@
       (setf transform nil
             pattern nil
             image img)
-      (zoom))))
+      (com-zoom))))
 
-(define-spectacle-command (zoom :name t :menu t)
+(define-spectacle-command (com-zoom :name t)
     ()
   (let ((viewer (find-pane-named *application-frame* 'viewer)))
     (let ((y-scale-slider (find-pane-named *application-frame* 'y-scale))
@@ -402,7 +399,13 @@
                     transform nil)))
           (setf image image))))))
 
-(defun reset-it ()
+(define-spectacle-command (com-redraw :name t)
+    ()
+  (let ((viewer (find-pane-named *application-frame* 'viewer)))
+    (handle-repaint viewer (sheet-region viewer))))
+
+(define-spectacle-command (com-reset :name t)
+    ()
   (let ((viewer (find-pane-named *application-frame* 'viewer)))
     (with-accessors ((image gadget-value)
                      (transform-parameters transform-parameters)
@@ -415,12 +418,21 @@
             pattern nil))
     (handle-repaint viewer (sheet-region viewer))))
 
-(define-spectacle-command (reset :name t :menu t)
-    ()
-  (reset-it))
+(define-spectacle-command (com-quit :name t :keystroke (#\q :meta)) ()
+  (frame-exit *application-frame*))
 
-(define-spectacle-command (redraw :name t)
-    ()
-  (let ((viewer (find-pane-named *application-frame* 'viewer)))
-    (handle-repaint viewer (sheet-region viewer))))
+(make-command-table 'file-command-table
+		    :errorp nil
+		    :menu '(("Load Image" :command com-load-image)
+                            ("Quit" :command com-quit)))
 
+(make-command-table 'image-command-table
+		    :errorp nil
+		    :menu '(("Zoom" :command com-zoom)
+                            ("Redraw" :command com-redraw)
+                            ("Reset" :command com-reset)))
+
+(make-command-table 'menubar-command-table
+		    :errorp nil
+		    :menu '(("File" :menu file-command-table)
+                            ("Image" :menu image-command-table)))
