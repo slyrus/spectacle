@@ -9,12 +9,14 @@
 (in-package :spectacle)
 
 (defclass spectacle-gadget (value-gadget)
-  ((image-transform :accessor image-transform :initarg :image-transform)
-   (image-transformed-image :accessor image-transformed-image :initarg :image-transformed-image)
+  ((transform-parameters :accessor transform-parameters :initarg :transform-parameters)
+   (transform :accessor transform :initarg :transform)
+   (transformed-image :accessor transformed-image :initarg :transformed-image)
    (image-pattern :accessor image-pattern :initarg :image-pattern))
   (:default-initargs :value nil
-    :image-transform nil
-    :image-transformed-image nil
+    :transform-parameters (list 1d0 1d0 0d0 0d0 0d0 0d0 0d0)
+    :transform nil
+    :transformed-image nil
     :image-pattern nil))
 
 (defmethod (setf gadget-value) :after (new-value (gadget spectacle-gadget)
@@ -43,11 +45,24 @@
   (with-bounding-rectangle* (x1 y1 x2 y2) (sheet-region pane)    
     (clim:draw-rectangle* (sheet-medium pane) x1 y1 x2 y2 :ink +background-ink+))
   (with-accessors ((image gadget-value)
-                   (transform image-transform)
-                   (transformed-image image-transformed-image)
+                   (transform-parameters transform-parameters)
+                   (transform transform)
+                   (transformed-image transformed-image)
                    (pattern image-pattern))
       pane
     (when image
+      (unless transform
+        (destructuring-bind (y-scale x-scale y-shift x-shift y-shear x-shear rotate)
+            transform-parameters
+          (setf transform
+                (make-affine-transformation :y-scale y-scale
+                                            :x-scale x-scale
+                                            :y-shift y-shift
+                                            :x-shift x-shift
+                                            :y-shear y-shear
+                                            :x-shear x-shear
+                                            :theta rotate)
+                pattern nil)))
       (unless pattern
         (setf transformed-image (if transform
                                     (transform-image image transform)
@@ -92,7 +107,7 @@
   (let ((viewer (find-pane-named *application-frame* 'viewer))
         (img (read-image-file image-pathname)))
     (with-accessors ((image gadget-value)
-                       (transform image-transform)
+                       (transform transform)
                        (pattern image-pattern))
         viewer
       (setf transform nil
@@ -105,14 +120,34 @@
     (let ((bounding-rectangle-height (bounding-rectangle-height viewer))
           (bounding-rectangle-width (bounding-rectangle-width viewer)))
       (with-accessors ((image gadget-value)
-                       (transform image-transform)
+                       (transform-parameters transform-parameters)
+                       (transform transform)
                        (pattern image-pattern))
           viewer
         (setf pattern nil)
-        (setf transform 
-              (with-image-bounds (oldy oldx) image
-                (let ((scale (apply #'min
-                                    (append (list (/ bounding-rectangle-height oldy))
-                                            (list (/ bounding-rectangle-width oldx))))))
-                  (make-affine-transformation :y-scale scale :x-scale scale))))
+        (with-image-bounds (oldy oldx) image
+          (let ((scale (apply #'min
+                              (append (list (/ bounding-rectangle-height oldy))
+                                      (list (/ bounding-rectangle-width oldx))))))
+            (setf (first transform-parameters) scale
+                  (second transform-parameters) scale
+                  transform nil)))
         (setf image image)))))
+
+(define-spectacle-command (redraw  :name t :menu t)
+    ()
+  (let ((viewer (find-pane-named *application-frame* 'viewer)))
+    (handle-repaint viewer (sheet-region viewer))))
+
+(define-spectacle-command (set-angle  :name t :menu t)
+    ((degrees 'number :default 0 :insert-default t))
+  (let ((viewer (find-pane-named *application-frame* 'viewer)))
+    (with-accessors ((image gadget-value)
+                     (transform-parameters transform-parameters)
+                     (transform transform)
+                     (pattern image-pattern))
+        viewer
+      (setf (seventh transform-parameters) 
+            (mod (* pi degrees (/ 180)) (* 2 pi))
+            transform nil
+            image image))))
