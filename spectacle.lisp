@@ -6,6 +6,7 @@
 ;;; Note: Originally based on Troels' Henriksen's
 ;;; clim-demo:image-viewer
 ;;;
+
 (in-package :spectacle)
 
 (defclass spectacle-gadget (value-gadget)
@@ -26,23 +27,46 @@
 
 (defclass spectacle-pane (spectacle-gadget basic-gadget) ())
 
+(defun theta-callback (gadget degrees)
+  (declare (ignore gadget))
+  (let ((viewer (find-pane-named *application-frame* 'viewer)))
+    (with-accessors ((image gadget-value)
+                     (transform-parameters transform-parameters)
+                     (transform transform))
+        viewer
+      (let ((rads (mod (* pi degrees (/ 180)) (* 2 pi))))
+        (unless (equal (seventh transform-parameters) rads)
+          (setf (seventh transform-parameters) rads
+                transform nil))))
+    (handle-repaint viewer (sheet-region viewer))))
+
 (define-application-frame spectacle ()
   ()
   (:menu-bar t)
   (:panes
    (viewer (make-pane 'spectacle-pane :background +black+ :foreground +white+))
+   (theta :slider
+          :min-value 0
+          :max-value 360
+          :value 0
+          :show-value-p t
+          :orientation :horizontal
+          :drag-callback #'theta-callback
+          :value-changed-callback 'theta-callback)
    (interactor :interactor
                :text-style (make-text-style :sans-serif nil nil)
-               :min-height 100
-               :min-width 200))
+               :min-height 100))
   (:layouts
    (default (vertically ()
-              (4/5 (labelling (:label "Opticl Image") viewer))
+              (4/5 (horizontally ()
+                     (4/5 viewer)
+                     (1/5 (horizontally ()
+                            theta))))
               (1/5 interactor)))))
 
 (defmethod handle-repaint ((pane spectacle-pane) region)
   (declare (ignore region))
-  (with-bounding-rectangle* (x1 y1 x2 y2) (sheet-region pane)    
+  (with-bounding-rectangle* (x1 y1 x2 y2) (sheet-region pane)
     (clim:draw-rectangle* (sheet-medium pane) x1 y1 x2 y2 :ink +background-ink+))
   (with-accessors ((image gadget-value)
                    (transform-parameters transform-parameters)
@@ -86,8 +110,11 @@
         (run))))
 
 (defun rgb-image-to-climi-rgb-pattern (image)
+  (declare (optimize (speed 3))
+           (type 8-bit-rgb-image image))
   (with-image-bounds (y x) image
     (let ((cimg (make-32-bit-gray-image y x)))
+      (declare (type 32-bit-gray-image cimg))
       (set-pixels (i j) cimg
         (multiple-value-bind (r g b)
             (pixel image i j)
@@ -125,21 +152,22 @@
                        (pattern image-pattern))
           viewer
         (setf pattern nil)
-        (with-image-bounds (oldy oldx) image
-          (let ((scale (apply #'min
-                              (append (list (/ bounding-rectangle-height oldy))
-                                      (list (/ bounding-rectangle-width oldx))))))
-            (setf (first transform-parameters) scale
-                  (second transform-parameters) scale
-                  transform nil)))
-        (setf image image)))))
+        (when image
+          (with-image-bounds (oldy oldx) image
+            (let ((scale (apply #'min
+                                (append (list (/ bounding-rectangle-height oldy))
+                                        (list (/ bounding-rectangle-width oldx))))))
+              (setf (first transform-parameters) scale
+                    (second transform-parameters) scale
+                    transform nil)))
+          (setf image image))))))
 
-(define-spectacle-command (redraw  :name t :menu t)
+(define-spectacle-command (redraw :name t)
     ()
   (let ((viewer (find-pane-named *application-frame* 'viewer)))
     (handle-repaint viewer (sheet-region viewer))))
 
-(define-spectacle-command (set-angle  :name t :menu t)
+(define-spectacle-command (set-angle :name t :menu t)
     ((degrees 'number :default 0 :insert-default t))
   (let ((viewer (find-pane-named *application-frame* 'viewer)))
     (with-accessors ((image gadget-value)
