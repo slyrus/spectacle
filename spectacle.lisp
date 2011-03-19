@@ -351,7 +351,9 @@
 (define-spectacle-command (zoom :name t :menu t)
     ()
   (let ((viewer (find-pane-named *application-frame* 'viewer)))
-    (let ((bounding-rectangle-height (bounding-rectangle-height viewer))
+    (let ((y-scale-slider (find-pane-named *application-frame* 'y-scale))
+          (x-scale-slider (find-pane-named *application-frame* 'x-scale))
+          (bounding-rectangle-height (bounding-rectangle-height viewer))
           (bounding-rectangle-width (bounding-rectangle-width viewer)))
       (with-accessors ((image gadget-value)
                        (transform-parameters transform-parameters)
@@ -364,6 +366,8 @@
             (let ((scale (apply #'min
                                 (append (list (/ bounding-rectangle-height oldy))
                                         (list (/ bounding-rectangle-width oldx))))))
+              (setf (gadget-value y-scale-slider) scale
+                    (gadget-value x-scale-slider) scale)
               (setf (first transform-parameters) scale
                     (second transform-parameters) scale
                     transform nil)))
