@@ -115,8 +115,16 @@
                               theta)))))
               (1/5 interactor)))))
 
+(defun reset-sliders ()
+  (let ((y-scale-slider (find-pane-named *application-frame* 'y-scale))
+        (x-scale-slider (find-pane-named *application-frame* 'x-scale))
+        (theta-slider (find-pane-named *application-frame* 'theta)))
+    (setf (gadget-value y-scale-slider) 1.0d0)
+    (setf (gadget-value x-scale-slider) 1.0d0)
+    (setf (gadget-value theta-slider) 0.0d0)))
+
 (defun opticl-image-to-climi-rgb-pattern (image)
-  (typecase image
+  (etypecase image
     (8-bit-rgb-image
      (locally (declare (optimize (speed 3))
                        (type 8-bit-rgb-image image))
@@ -155,6 +163,20 @@
            (declare (type 32-bit-gray-image cimg))
            (set-pixels (i j) cimg
              (let ((k (pixel image i j)))
+               (+ (ash k 0) (ash k 8) (ash k 16))))
+           (make-instance 'clim-internals::rgb-pattern
+                          :image (make-instance 'clim-internals::rgb-image
+                                                :height y
+                                                :width x
+                                                :data cimg))))))
+    (1-bit-gray-image
+     (locally (declare (optimize (speed 3))
+                       (type 1-bit-gray-image image))
+       (with-image-bounds (y x) image
+         (let ((cimg (make-32-bit-gray-image y x)))
+           (declare (type 32-bit-gray-image cimg))
+           (set-pixels (i j) cimg
+             (let ((k (* 255 (pixel image i j))))
                (+ (ash k 0) (ash k 8) (ash k 16))))
            (make-instance 'clim-internals::rgb-pattern
                           :image (make-instance 'clim-internals::rgb-image
@@ -212,13 +234,16 @@
 
 (define-spectacle-command (com-load-image :name t :menu t)
     ((image-pathname 'pathname
-                     :default (user-homedir-pathname) :insert-default t))
+                     :default (merge-pathnames "projects/opticl-test/images/"
+                               (user-homedir-pathname))
+                     :insert-default t))
   (let ((viewer (find-pane-named *application-frame* 'viewer))
         (img (read-image-file image-pathname)))
     (with-accessors ((image gadget-value)
                        (transform transform)
                        (pattern image-pattern))
         viewer
+      (reset-sliders)
       (setf transform nil
             pattern nil
             image img))))
