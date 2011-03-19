@@ -12,10 +12,12 @@
 (defclass spectacle-gadget (value-gadget)
   ((transform-parameters :accessor transform-parameters :initarg :transform-parameters)
    (transform :accessor transform :initarg :transform)
+   (lock-x-and-y-scale :accessor lock-x-and-y-scale :initarg :lock-x-and-y-scale)
    (transformed-image :accessor transformed-image :initarg :transformed-image)
    (image-pattern :accessor image-pattern :initarg :image-pattern))
   (:default-initargs :value nil
     :transform-parameters #(1d0 1d0 0d0 0d0 0d0 0d0 0d0)
+    :lock-x-and-y-scale t
     :transform nil
     :transformed-image nil
     :image-pattern nil))
@@ -32,25 +34,38 @@
   (let ((viewer (find-pane-named *application-frame* 'viewer)))
     (with-accessors ((image gadget-value)
                      (transform-parameters transform-parameters)
-                     (transform transform))
+                     (transform transform)
+                     (lock-x-and-y-scale lock-x-and-y-scale))
         viewer
-      (let ((param 0))
-        (unless (equal (elt transform-parameters param) scale)
-          (setf (elt transform-parameters param) scale
-                transform nil))))
-    (handle-repaint viewer (sheet-region viewer))))
+      (let ((y-scale-param 0)
+            (x-scale-param 1))
+        (unless (equal (elt transform-parameters y-scale-param) scale)
+          (let ((x-scale-slider (find-pane-named *application-frame* 'x-scale)))
+            (when lock-x-and-y-scale
+              (setf (gadget-value x-scale-slider) scale
+                    (elt transform-parameters x-scale-param) scale)))
+          (setf (elt transform-parameters y-scale-param) scale
+                transform nil)
+          (handle-repaint viewer (sheet-region viewer)))))))
 
 (defun x-scale-callback (gadget scale)
   (declare (ignore gadget))
   (let ((viewer (find-pane-named *application-frame* 'viewer)))
     (with-accessors ((image gadget-value)
                      (transform-parameters transform-parameters)
-                     (transform transform))
+                     (transform transform)
+                     (lock-x-and-y-scale lock-x-and-y-scale))
         viewer
-      (let ((param 1))
-        (unless (equal (elt transform-parameters param) scale)
-          (setf (elt transform-parameters param) scale
-                transform nil))))
+      (let ((y-scale-param 0)
+            (x-scale-param 1))
+        (unless (equal (elt transform-parameters x-scale-param) scale)
+          (let ((y-scale-slider (find-pane-named *application-frame* 'y-scale)))
+            (when lock-x-and-y-scale
+              (setf (gadget-value y-scale-slider) scale
+                    (elt transform-parameters y-scale-param) scale)))
+          (setf (elt transform-parameters x-scale-param) scale
+                transform nil)
+          (handle-repaint viewer (sheet-region viewer)))))
     (handle-repaint viewer (sheet-region viewer))))
 
 (defun theta-callback (gadget degrees)
@@ -102,6 +117,16 @@
                       :background +black+
                       :foreground +white+
                       :width 500))
+   (lock-scale :toggle-button
+               :label "Lock X and Y Scale"
+               :value t
+               :value-changed-callback
+               (lambda (gadget value)
+                 (declare (ignore gadget))
+                 (let ((viewer (find-pane-named *application-frame* 'viewer)))
+                   (with-accessors ((lock-x-and-y-scale lock-x-and-y-scale))
+                       viewer
+                     (setf lock-x-and-y-scale value)))))
    (y-scale :slider
             :min-value 0.1
             :max-value 4
@@ -160,6 +185,7 @@
               (4/5 (horizontally ()
                      (4/5 viewer)
                      (1/5 (vertically ()
+                            lock-scale
                             (labelling (:label "Y Scale")
                               y-scale)
                             (labelling (:label "X Scale")
