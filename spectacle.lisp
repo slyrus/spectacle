@@ -27,19 +27,6 @@
 
 (defclass spectacle-pane (spectacle-gadget basic-gadget) ())
 
-(defun theta-callback (gadget degrees)
-  (declare (ignore gadget))
-  (let ((viewer (find-pane-named *application-frame* 'viewer)))
-    (with-accessors ((image gadget-value)
-                     (transform-parameters transform-parameters)
-                     (transform transform))
-        viewer
-      (let ((rads (mod (* pi degrees (/ 180)) (* 2 pi))))
-        (unless (equal (seventh transform-parameters) rads)
-          (setf (seventh transform-parameters) rads
-                transform nil))))
-    (handle-repaint viewer (sheet-region viewer))))
-
 (defun y-scale-callback (gadget scale)
   (declare (ignore gadget))
   (let ((viewer (find-pane-named *application-frame* 'viewer)))
@@ -47,9 +34,10 @@
                      (transform-parameters transform-parameters)
                      (transform transform))
         viewer
-      (unless (equal (first transform-parameters) scale)
-        (setf (first transform-parameters) scale
-              transform nil)))
+      (let ((param 0))
+        (unless (equal (elt transform-parameters param) scale)
+          (setf (elt transform-parameters param) scale
+                transform nil))))
     (handle-repaint viewer (sheet-region viewer))))
 
 (defun x-scale-callback (gadget scale)
@@ -59,10 +47,52 @@
                      (transform-parameters transform-parameters)
                      (transform transform))
         viewer
-      (unless (equal (second transform-parameters) scale)
-        (setf (second transform-parameters) scale
-              transform nil)))
+      (let ((param 1))
+        (unless (equal (elt transform-parameters param) scale)
+          (setf (elt transform-parameters param) scale
+                transform nil))))
     (handle-repaint viewer (sheet-region viewer))))
+
+(defun theta-callback (gadget degrees)
+  (declare (ignore gadget))
+  (let ((viewer (find-pane-named *application-frame* 'viewer)))
+    (with-accessors ((image gadget-value)
+                     (transform-parameters transform-parameters)
+                     (transform transform))
+        viewer
+      (let ((param 6)
+            (rads (mod (* pi degrees (/ 180)) (* 2 pi))))
+        (unless (equal (elt transform-parameters param) rads)
+          (setf (elt transform-parameters param) rads
+                transform nil))))
+    (handle-repaint viewer (sheet-region viewer))))
+
+(defun y-shear-callback (gadget shear)
+  (declare (ignore gadget))
+  (let ((viewer (find-pane-named *application-frame* 'viewer)))
+    (with-accessors ((image gadget-value)
+                     (transform-parameters transform-parameters)
+                     (transform transform))
+        viewer
+      (let ((param 4))
+        (unless (equal (elt transform-parameters param) shear)
+          (setf (elt transform-parameters param) shear
+                transform nil))))
+    (handle-repaint viewer (sheet-region viewer))))
+
+(defun x-shear-callback (gadget shear)
+  (declare (ignore gadget))
+  (let ((viewer (find-pane-named *application-frame* 'viewer)))
+    (with-accessors ((image gadget-value)
+                     (transform-parameters transform-parameters)
+                     (transform transform))
+        viewer
+      (let ((param 5))
+        (unless (equal (elt transform-parameters param) shear)
+          (setf (elt transform-parameters param) shear
+                transform nil))))
+    (handle-repaint viewer (sheet-region viewer))))
+
 
 (define-application-frame spectacle ()
   ()
@@ -99,6 +129,29 @@
           :orientation :horizontal
           :drag-callback #'theta-callback
           :value-changed-callback 'theta-callback)
+   (y-shear :slider
+            :min-value -5
+            :max-value 5
+            :decimal-places 2
+            :value 0.0d0
+            :show-value-p t
+            :orientation :horizontal
+            :drag-callback #'y-shear-callback
+            :value-changed-callback 'y-shear-callback)
+   (reset-button :push-button
+                 :label "Reset Parameters"
+                 :activate-callback (lambda (gadget)
+                                      (declare (ignore gadget))
+                                      (reset-it)))
+   (x-shear :slider
+            :min-value -5
+            :max-value 5
+            :decimal-places 2
+            :value 0.0d0
+            :show-value-p t
+            :orientation :horizontal
+            :drag-callback #'x-shear-callback
+            :value-changed-callback 'x-shear-callback)
    (interactor :interactor
                :text-style (make-text-style :sans-serif nil nil)
                :min-height 100))
@@ -112,16 +165,32 @@
                             (labelling (:label "X Scale")
                               x-scale)
                             (labelling (:label "Theta")
-                              theta)))))
+                              theta)
+                            (labelling (:label "Y Shear")
+                              y-shear)
+                            (labelling (:label "X Shear")
+                              x-shear)
+                            reset-button))))
               (1/5 interactor)))))
 
 (defun reset-sliders ()
   (let ((y-scale-slider (find-pane-named *application-frame* 'y-scale))
         (x-scale-slider (find-pane-named *application-frame* 'x-scale))
-        (theta-slider (find-pane-named *application-frame* 'theta)))
+        (theta-slider (find-pane-named *application-frame* 'theta))
+        (y-shear-slider (find-pane-named *application-frame* 'y-shear))
+        (x-shear-slider (find-pane-named *application-frame* 'x-shear)))
     (setf (gadget-value y-scale-slider) 1.0d0)
     (setf (gadget-value x-scale-slider) 1.0d0)
+    (setf (gadget-value y-shear-slider) 0.0d0)
+    (setf (gadget-value x-shear-slider) 0.0d0)
     (setf (gadget-value theta-slider) 0.0d0)))
+
+(defun reset-transform-parameters (transform-parameters)
+  (setf (elt transform-parameters 0) 1d0
+        (elt transform-parameters 1) 1d0
+        (elt transform-parameters 4) 0d0
+        (elt transform-parameters 5) 0d0
+        (elt transform-parameters 6) 0d0))
 
 (defun opticl-image-to-climi-rgb-pattern (image)
   (etypecase image
@@ -274,10 +343,8 @@
                      (pattern image-pattern))
         viewer
       (reset-sliders)
-      (setf (first transform-parameters) 1d0
-            (second transform-parameters) 1d0
-            (seventh transform-parameters) 0d0
-            transform nil
+      (reset-transform-parameters transform-parameters)
+      (setf transform nil
             pattern nil
             image img))))
 
@@ -301,6 +368,23 @@
                     (second transform-parameters) scale
                     transform nil)))
           (setf image image))))))
+
+(defun reset-it ()
+  (let ((viewer (find-pane-named *application-frame* 'viewer)))
+    (with-accessors ((image gadget-value)
+                     (transform-parameters transform-parameters)
+                     (transform transform)
+                     (pattern image-pattern))
+        viewer
+      (reset-sliders)
+      (reset-transform-parameters transform-parameters)
+      (setf transform nil
+            pattern nil))
+    (handle-repaint viewer (sheet-region viewer))))
+
+(define-spectacle-command (reset :name t :menu t)
+    ()
+  (reset-it))
 
 (define-spectacle-command (redraw :name t)
     ()
