@@ -40,14 +40,60 @@
                 transform nil))))
     (handle-repaint viewer (sheet-region viewer))))
 
+(defun y-scale-callback (gadget scale)
+  (declare (ignore gadget))
+  (let ((viewer (find-pane-named *application-frame* 'viewer)))
+    (with-accessors ((image gadget-value)
+                     (transform-parameters transform-parameters)
+                     (transform transform))
+        viewer
+      (unless (equal (first transform-parameters) scale)
+        (setf (first transform-parameters) scale
+              transform nil)))
+    (handle-repaint viewer (sheet-region viewer))))
+
+(defun x-scale-callback (gadget scale)
+  (declare (ignore gadget))
+  (let ((viewer (find-pane-named *application-frame* 'viewer)))
+    (with-accessors ((image gadget-value)
+                     (transform-parameters transform-parameters)
+                     (transform transform))
+        viewer
+      (unless (equal (second transform-parameters) scale)
+        (setf (second transform-parameters) scale
+              transform nil)))
+    (handle-repaint viewer (sheet-region viewer))))
+
 (define-application-frame spectacle ()
   ()
   (:menu-bar t)
   (:panes
-   (viewer (make-pane 'spectacle-pane :background +black+ :foreground +white+))
+   (viewer (make-pane 'spectacle-pane
+                      :background +black+
+                      :foreground +white+
+                      :width 500))
+   (y-scale :slider
+            :min-value 0.1
+            :max-value 4
+            :decimal-places 2
+            :value 1.0d0
+            :show-value-p t
+            :orientation :horizontal
+            :drag-callback #'y-scale-callback
+            :value-changed-callback 'y-scale-callback)
+   (x-scale :slider
+            :min-value 0.1
+            :max-value 4
+            :decimal-places 2
+            :value 1.0d0
+            :show-value-p t
+            :orientation :horizontal
+            :drag-callback #'x-scale-callback
+            :value-changed-callback 'x-scale-callback)
    (theta :slider
           :min-value 0
           :max-value 360
+          :decimal-places 1
           :value 0
           :show-value-p t
           :orientation :horizontal
@@ -60,8 +106,13 @@
    (default (vertically ()
               (4/5 (horizontally ()
                      (4/5 viewer)
-                     (1/5 (horizontally ()
-                            theta))))
+                     (1/5 (vertically ()
+                            (labelling (:label "Y Scale" :height 1 :min-height 1)
+                              y-scale)
+                            (labelling (:label "X Scale")
+                              x-scale)
+                            (labelling (:label "Theta")
+                              theta)))))
               (1/5 interactor)))))
 
 (defmethod handle-repaint ((pane spectacle-pane) region)
@@ -167,15 +218,3 @@
   (let ((viewer (find-pane-named *application-frame* 'viewer)))
     (handle-repaint viewer (sheet-region viewer))))
 
-(define-spectacle-command (set-angle :name t :menu t)
-    ((degrees 'number :default 0 :insert-default t))
-  (let ((viewer (find-pane-named *application-frame* 'viewer)))
-    (with-accessors ((image gadget-value)
-                     (transform-parameters transform-parameters)
-                     (transform transform)
-                     (pattern image-pattern))
-        viewer
-      (setf (seventh transform-parameters) 
-            (mod (* pi degrees (/ 180)) (* 2 pi))
-            transform nil
-            image image))))
