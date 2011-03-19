@@ -264,8 +264,7 @@
 
 (define-spectacle-command (com-load-image :name t :menu t)
     ((image-pathname 'pathname
-                     :default (merge-pathnames "projects/opticl-test/images/"
-                               (user-homedir-pathname))
+                     :default (user-homedir-pathname)
                      :insert-default t))
   (let ((viewer (find-pane-named *application-frame* 'viewer))
         (img (read-image-file image-pathname)))
