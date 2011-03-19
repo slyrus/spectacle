@@ -107,7 +107,7 @@
               (4/5 (horizontally ()
                      (4/5 viewer)
                      (1/5 (vertically ()
-                            (labelling (:label "Y Scale" :height 1 :min-height 1)
+                            (labelling (:label "Y Scale")
                               y-scale)
                             (labelling (:label "X Scale")
                               x-scale)
@@ -150,6 +150,36 @@
              (multiple-value-bind (r g b)
                  (pixel image i j)
                (+ (ash r 0) (ash g 8) (ash b 16))))
+           (make-instance 'clim-internals::rgb-pattern
+                          :image (make-instance 'clim-internals::rgb-image
+                                                :height y
+                                                :width x
+                                                :data cimg))))))
+    (16-bit-rgb-image
+     (locally (declare (optimize (speed 3))
+                       (type 16-bit-rgb-image image))
+       (with-image-bounds (y x) image
+         (let ((cimg (make-32-bit-gray-image y x)))
+           (declare (type 32-bit-gray-image cimg))
+           (set-pixels (i j) cimg
+             (multiple-value-bind (r g b)
+                 (pixel image i j)
+               (+ (ash (ash r -8) 0) (ash (ash g -8) 8) (ash (ash b -8) 16))))
+           (make-instance 'clim-internals::rgb-pattern
+                          :image (make-instance 'clim-internals::rgb-image
+                                                :height y
+                                                :width x
+                                                :data cimg))))))
+    (16-bit-rgba-image
+     (locally (declare (optimize (speed 3))
+                       (type 16-bit-rgba-image image))
+       (with-image-bounds (y x) image
+         (let ((cimg (make-32-bit-gray-image y x)))
+           (declare (type 32-bit-gray-image cimg))
+           (set-pixels (i j) cimg
+             (multiple-value-bind (r g b)
+                 (pixel image i j)
+               (+ (ash (ash r -8) 0) (ash (ash g -8) 8) (ash (ash b -8) 16))))
            (make-instance 'clim-internals::rgb-pattern
                           :image (make-instance 'clim-internals::rgb-image
                                                 :height y
@@ -240,11 +270,15 @@
   (let ((viewer (find-pane-named *application-frame* 'viewer))
         (img (read-image-file image-pathname)))
     (with-accessors ((image gadget-value)
-                       (transform transform)
-                       (pattern image-pattern))
+                     (transform-parameters transform-parameters)
+                     (transform transform)
+                     (pattern image-pattern))
         viewer
       (reset-sliders)
-      (setf transform nil
+      (setf (first transform-parameters) 1d0
+            (second transform-parameters) 1d0
+            (seventh transform-parameters) 0d0
+            transform nil
             pattern nil
             image img))))
 
