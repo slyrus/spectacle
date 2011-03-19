@@ -121,8 +121,8 @@
             :drag-callback #'x-scale-callback
             :value-changed-callback 'x-scale-callback)
    (theta :slider
-          :min-value 0
-          :max-value 360
+          :min-value -180
+          :max-value 180
           :decimal-places 1
           :value 0
           :show-value-p t
@@ -315,10 +315,10 @@
         (change-space-requirements pane :height image-height :width image-width)
         (let ((bounding-rectangle-height (bounding-rectangle-height pane))
               (bounding-rectangle-width (bounding-rectangle-width pane)))
-          (handler-case (clim:draw-pattern*
-                         pane pattern
-                         (/ (- bounding-rectangle-width image-width) 2)
-                         (/ (- bounding-rectangle-height image-height) 2))))))))
+          (clim:draw-pattern*
+           pane pattern
+           (/ (- bounding-rectangle-width image-width) 2)
+           (/ (- bounding-rectangle-height image-height) 2)))))))
 
 (defun spectacle (&key (new-process t))
   (flet ((run ()
