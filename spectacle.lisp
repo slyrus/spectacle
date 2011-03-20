@@ -163,11 +163,6 @@
             :orientation :horizontal
             :drag-callback #'y-shear-callback
             :value-changed-callback 'y-shear-callback)
-   (reset-button :push-button
-                 :label "Reset Parameters"
-                 :activate-callback (lambda (gadget)
-                                      (declare (ignore gadget))
-                                      (com-reset)))
    (x-shear :slider
             :min-value -5
             :max-value 5
@@ -177,11 +172,16 @@
             :orientation :horizontal
             :drag-callback #'x-shear-callback
             :value-changed-callback 'x-shear-callback)
+   (reset-button :push-button
+                 :label "Reset Parameters"
+                 :activate-callback (lambda (gadget)
+                                      (declare (ignore gadget))
+                                      (com-reset)))
    (interactor :interactor
                :text-style (make-text-style :sans-serif nil nil)
                :min-height 100))
   (:layouts
-   (default (vertically ()
+   (default (vertically (:height 250)
               (4/5 (horizontally ()
                      (4/5 viewer)
                      (1/5 (vertically ()
