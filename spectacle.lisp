@@ -9,27 +9,20 @@
 
 (in-package :spectacle)
 
-(defclass spectacle-gadget (value-gadget)
-  ((transform-parameters :accessor transform-parameters :initarg :transform-parameters)
+(defclass spectacle-pane (application-pane) 
+  ((image :initarg :image :accessor image)
+   (transform-parameters :accessor transform-parameters :initarg :transform-parameters)
    (transform :accessor transform :initarg :transform)
-   (lock-x-and-y-scale :accessor lock-x-and-y-scale :initarg :lock-x-and-y-scale)
-   (climi::value :accessor image))
-  (:default-initargs :value nil
+   (lock-x-and-y-scale :accessor lock-x-and-y-scale :initarg :lock-x-and-y-scale))
+  (:default-initargs :image nil
     :transform-parameters #(1d0 1d0 0d0 0d0 0d0 0d0 0d0)
     :lock-x-and-y-scale t
     :transform nil))
 
-(defmethod (setf gadget-value) :after (new-value (gadget spectacle-gadget)
-                                                 &key &allow-other-keys)
-  (handle-repaint gadget (or (pane-viewport-region gadget)
-                             (sheet-region gadget))))
-
-(defclass spectacle-pane (spectacle-gadget application-pane) ())
-
 (defun y-scale-callback (gadget scale)
   (declare (ignore gadget))
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
-    (with-accessors ((image gadget-value)
+    (with-accessors ((image image)
                      (transform-parameters transform-parameters)
                      (transform transform)
                      (lock-x-and-y-scale lock-x-and-y-scale))
@@ -43,12 +36,13 @@
                     (elt transform-parameters x-scale-param) scale)))
           (setf (elt transform-parameters y-scale-param) scale
                 transform nil)
-          (handle-repaint viewer (sheet-region viewer)))))))
+          (handle-repaint viewer (or (pane-viewport-region viewer)
+                                     (sheet-region viewer))))))))
 
 (defun x-scale-callback (gadget scale)
   (declare (ignore gadget))
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
-    (with-accessors ((image gadget-value)
+    (with-accessors ((image image)
                      (transform-parameters transform-parameters)
                      (transform transform)
                      (lock-x-and-y-scale lock-x-and-y-scale))
@@ -62,13 +56,13 @@
                     (elt transform-parameters y-scale-param) scale)))
           (setf (elt transform-parameters x-scale-param) scale
                 transform nil)
-          (handle-repaint viewer (sheet-region viewer)))))
-    (handle-repaint viewer (sheet-region viewer))))
+          (handle-repaint viewer (or (pane-viewport-region viewer)
+                                     (sheet-region viewer))))))))
 
 (defun theta-callback (gadget degrees)
   (declare (ignore gadget))
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
-    (with-accessors ((image gadget-value)
+    (with-accessors ((image image)
                      (transform-parameters transform-parameters)
                      (transform transform))
         viewer
@@ -76,47 +70,49 @@
             (rads (mod (* pi degrees (/ 180)) (* 2 pi))))
         (unless (equal (elt transform-parameters param) rads)
           (setf (elt transform-parameters param) rads
-                transform nil))))
-    (handle-repaint viewer (sheet-region viewer))))
+                transform nil)
+          (handle-repaint viewer (or (pane-viewport-region viewer)
+                                     (sheet-region viewer))))))))
 
 (defun y-shear-callback (gadget shear)
   (declare (ignore gadget))
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
-    (with-accessors ((image gadget-value)
+    (with-accessors ((image image)
                      (transform-parameters transform-parameters)
                      (transform transform))
         viewer
       (let ((param 4))
         (unless (equal (elt transform-parameters param) shear)
           (setf (elt transform-parameters param) shear
-                transform nil))))
-    (handle-repaint viewer (sheet-region viewer))))
+                transform nil)
+          (handle-repaint viewer (or (pane-viewport-region viewer)
+                                     (sheet-region viewer))))))))
 
 (defun x-shear-callback (gadget shear)
   (declare (ignore gadget))
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
-    (with-accessors ((image gadget-value)
+    (with-accessors ((image image)
                      (transform-parameters transform-parameters)
                      (transform transform))
         viewer
       (let ((param 5))
         (unless (equal (elt transform-parameters param) shear)
           (setf (elt transform-parameters param) shear
-                transform nil))))
-    (handle-repaint viewer (sheet-region viewer))))
+                transform nil)
+          (handle-repaint viewer (or (pane-viewport-region viewer)
+                                     (sheet-region viewer))))))))
 
 (define-application-frame spectacle ()
   ()
   (:menu-bar menubar-command-table)
   (:panes
-   (viewer (make-clim-stream-pane 
-            :type 'spectacle-pane
-            :incremental-redisplay t
-            :name 'spectacle-pane
-            :width 500
-            :background +black+
-            :foreground +white+
-            :scroll-bars :both))
+   (viewer (scrolling ()
+             (make-pane 'spectacle-pane
+                        :name 'spectacle-pane
+                        :width 500
+                        :incremental-redisplay t
+                        :background +black+
+                        :foreground +white+)))
    (lock-scale :toggle-button
                :label "Lock X and Y Scale"
                :value t
@@ -220,136 +216,114 @@
         (elt transform-parameters 5) 0d0
         (elt transform-parameters 6) 0d0))
 
-(defun opticl-image-to-climi-rgb-pattern (image)
+(defun opticl-image-to-climi-rgb-pattern (image y x)
   (etypecase image
     (8-bit-rgb-image
      (locally (declare (optimize (speed 3))
-                       (type 8-bit-rgb-image image))
-       (with-image-bounds (y x) image
-         (let ((cimg (make-32-bit-gray-image y x)))
-           (declare (type 32-bit-gray-image cimg))
-           (set-pixels (i j) cimg
-             (multiple-value-bind (r g b)
-                 (pixel image i j)
-               (+ (ash r 0) (ash g 8) (ash b 16))))
-           (make-instance 'clim-internals::rgb-pattern
-                          :image (make-instance 'clim-internals::rgb-image
-                                                :height y
-                                                :width x
-                                                :data cimg))))))
-    (8-bit-rgba-image
-     (locally (declare (optimize (speed 3))
-                       (type 8-bit-rgba-image image))
-       (with-image-bounds (y x) image
-         (let ((cimg (make-32-bit-gray-image y x)))
-           (declare (type 32-bit-gray-image cimg))
-           (set-pixels (i j) cimg
-             (multiple-value-bind (r g b)
-                 (pixel image i j)
-               (+ (ash r 0) (ash g 8) (ash b 16))))
-           (make-instance 'clim-internals::rgb-pattern
-                          :image (make-instance 'clim-internals::rgb-image
-                                                :height y
-                                                :width x
-                                                :data cimg))))))
-    (16-bit-rgb-image
-     (locally (declare (optimize (speed 3))
-                       (type 16-bit-rgb-image image))
-       (with-image-bounds (y x) image
-         (let ((cimg (make-32-bit-gray-image y x)))
-           (declare (type 32-bit-gray-image cimg))
-           (set-pixels (i j) cimg
-             (multiple-value-bind (r g b)
-                 (pixel image i j)
-               (+ (ash (ash r -8) 0) (ash (ash g -8) 8) (ash (ash b -8) 16))))
-           (make-instance 'clim-internals::rgb-pattern
-                          :image (make-instance 'clim-internals::rgb-image
-                                                :height y
-                                                :width x
-                                                :data cimg))))))
-    (16-bit-rgba-image
-     (locally (declare (optimize (speed 3))
-                       (type 16-bit-rgba-image image))
-       (with-image-bounds (y x) image
-         (let ((cimg (make-32-bit-gray-image y x)))
-           (declare (type 32-bit-gray-image cimg))
-           (set-pixels (i j) cimg
-             (multiple-value-bind (r g b)
-                 (pixel image i j)
-               (+ (ash (ash r -8) 0) (ash (ash g -8) 8) (ash (ash b -8) 16))))
-           (make-instance 'clim-internals::rgb-pattern
-                          :image (make-instance 'clim-internals::rgb-image
-                                                :height y
-                                                :width x
-                                                :data cimg))))))
-    (8-bit-gray-image
-     (locally (declare (optimize (speed 3))
-                       (type 8-bit-gray-image image))
-       (with-image-bounds (y x) image
-         (let ((cimg (make-32-bit-gray-image y x)))
-           (declare (type 32-bit-gray-image cimg))
-           (set-pixels (i j) cimg
-             (let ((k (pixel image i j)))
-               (+ (ash k 0) (ash k 8) (ash k 16))))
-           (make-instance 'clim-internals::rgb-pattern
-                          :image (make-instance 'clim-internals::rgb-image
-                                                :height y
-                                                :width x
-                                                :data cimg))))))
-    (1-bit-gray-image
-     (locally (declare (optimize (speed 3))
-                       (type 1-bit-gray-image image))
-       (with-image-bounds (y x) image
-         (let ((cimg (make-32-bit-gray-image y x)))
-           (declare (type 32-bit-gray-image cimg))
-           (set-pixels (i j) cimg
-             (let ((k (* 255 (pixel image i j))))
-               (+ (ash k 0) (ash k 8) (ash k 16))))
-           (make-instance 'clim-internals::rgb-pattern
-                          :image (make-instance 'clim-internals::rgb-image
-                                                :height y
-                                                :width x
-                                                :data cimg))))))))
+                       (type 8-bit-rgb-image image)))
+     #+debug (print (list 'image-bounds y x) *trace-output*)
+     (let ((cimg (make-32-bit-gray-image y x)))
+       (declare (type 32-bit-gray-image cimg))
+       (set-pixels (i j) cimg
+         (multiple-value-bind (r g b)
+             (pixel image i j)
+           (+ (ash r 0) (ash g 8) (ash b 16))))
+       (make-instance 'clim-internals::rgb-pattern
+                      :image (make-instance 'clim-internals::rgb-image
+                                            :height y
+                                            :width x
+                                            :data cimg))))
+    ))
 
 (defmethod handle-repaint ((pane spectacle-pane) region)
-  (with-accessors ((image gadget-value)
+  (with-accessors ((image image)
                    (transform-parameters transform-parameters)
                    (transform transform))
       pane
-
-    (with-bounding-rectangle* (x1 y1 x2 y2) (pane-viewport-region pane)
-      (clim:draw-rectangle* (sheet-medium pane) x1 y1 x2 y2 :ink +background-ink+))
-
+    ;; Ok, we have 5 "regions" to consider here:
+    ;;
+    ;; A. The untransformed image -- 0, 0, image-height, image-width
+    ;;  
+    ;; B. The transformed image
+    ;;
+    ;; C. The sheet -- this is the underlying pane, around which we
+    ;; can scroll to view some or all of the image
+    ;;
+    ;; D. The pane -- this is the currently visible portion of the
+    ;; sheet, on which we will actually draw the image
+    ;;
+    ;; E. The region of transformed portion of the image
+    ;; which we will actually want to view
+    
+    ;; we'll compute the opticl transform if it doesn't exist yet
+    (unless transform
+      (destructuring-bind (y-scale x-scale y-shift x-shift y-shear x-shear rotate)
+          (coerce transform-parameters 'list)
+        (setf transform
+              (make-affine-transformation :y-scale y-scale :x-scale x-scale
+                                          :y-shift y-shift :x-shift x-shift
+                                          :y-shear y-shear :x-shear x-shear
+                                          :theta rotate))))
+    ;; 1. get the image dimensions
     (when image
-      (updating-output (pane :unique-id image)
-        (unless transform
-          (destructuring-bind (y-scale x-scale y-shift x-shift y-shear x-shear rotate)
-              (coerce transform-parameters 'list)
-            (setf transform
-                  (make-affine-transformation :y-scale y-scale
-                                              :x-scale x-scale
-                                              :y-shift y-shift
-                                              :x-shift x-shift
-                                              :y-shear y-shear
-                                              :x-shear x-shear
-                                              :theta rotate))))
+      (with-image-bounds (a-height a-width) 
+          image
+        #+debug (print (list 'a a-height a-width) *trace-output*)
 
-        ;; new strategy here, we going to compute the visible portion
-        ;; of the image, based on the bounding rectangle, and only
-        ;; draw that section, and, for the moment, we'll do that every
-        ;; time through:
-        (let* ((transformed-image (if transform
-                                      (transform-image image transform)
-                                      image))
-               (pattern (opticl-image-to-climi-rgb-pattern transformed-image)))
-          (with-image-bounds (image-height image-width) transformed-image
-            (change-space-requirements pane :height image-height :width image-width)
-            (let ((bounding-rectangle-height (bounding-rectangle-height pane))
-                  (bounding-rectangle-width (bounding-rectangle-width pane)))
-              (clim:draw-pattern*
-               pane pattern
-               (/ (- bounding-rectangle-width image-width) 2)
-               (/ (- bounding-rectangle-height image-height) 2)))))))))
+        ;; 2. compute the coordinates and dimension of the transformed image
+        (multiple-value-bind (b-y1 b-x1 b-y2 b-x2)
+            (opticl::compute-bounds 0 0 a-height a-width transform)
+          (let ((b-height (abs (- b-y2 b-y1)))
+                (b-width (abs (- b-x2 b-x1))))
+            #+debug (print (list 'b b-y1 b-x1 b-y2 b-x2 b-height b-width) *trace-output*)
+
+            ;; 2A. change the size of the pane to fit the transformed image
+            
+
+            ;; 3. get the coordinates of the sheet (x1 and y1 should always be 0!)
+            (with-bounding-rectangle* (c-x1 c-y1 c-x2 c-y2)
+                (sheet-region pane)
+              #+debug (print (list 'c c-y1 c-x1 c-y2 c-x2) *trace-output*)
+
+              ;; 4. get the coordinates of the pane
+              (with-bounding-rectangle* (d-x1 d-y1 d-x2 d-y2)
+                  (pane-viewport-region pane)
+                #+debug (print (list 'd d-y1 d-x1 d-y2 d-x2) *trace-output*)
+
+                (let ((e-y1 (+ d-y1 b-y1))
+                      (e-x1 (+ d-x1 b-x1))
+                      (e-y2 (min (+ d-y2 b-y1) (+ d-y1 b-y2)))
+                      (e-x2 (min (+ d-x2 b-x1) (+ d-x1 b-x2))))
+                  (let ((e-height (- e-y2 e-y1))
+                        (e-width (- e-x2 e-x1)))
+                    #+debug (print (list 'e e-y1 e-x1 e-y2 e-x2 e-height e-width) *trace-output*)
+                              
+                    (resize-sheet pane
+                                  (max d-x2 b-width)
+                                  (max d-y2 b-height))
+                    ;; 4A. fill the region with red so that we can figure
+                    ;; out what we're doing here, this will probably become
+                    ;; +background-ink+ at some point.
+                    (clim:draw-rectangle* (sheet-medium pane)
+                                          d-x1 d-y1 d-x2 d-y2
+                                          :ink +background-ink+)
+              
+
+                    ;; 5. Now we should be able to transform the image into
+                    ;; the appropriately requested destination image and display that
+                    (let ((transformed-image (if transform
+                                                 (transform-image image transform
+                                                                  :y (cons e-y1 e-y2)
+                                                                  :x (cons e-x1 e-x2))
+                                                 image)))
+                      #+debug (print (array-dimensions transformed-image) *trace-output*)
+                      (let ((pattern
+                             (opticl-image-to-climi-rgb-pattern
+                              transformed-image (ceiling e-height) (ceiling e-width))))
+                        (clim:draw-pattern* pane pattern 
+                                            (max 0 (/ (- d-x2 b-width) 2))
+                                            (max 0 (/ (- d-y2 b-height) 2))))))))
+              #+nil (change-space-requirements pane :height b-height :width b-width))))))))
 
 (defun spectacle (&key (new-process t))
   (flet ((run ()
@@ -365,7 +339,7 @@
                      :insert-default t))
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane))
         (img (read-image-file image-pathname)))
-    (with-accessors ((image gadget-value)
+    (with-accessors ((image image)
                      (transform-parameters transform-parameters)
                      (transform transform))
         viewer
@@ -373,7 +347,8 @@
       (reset-transform-parameters transform-parameters)
       (setf transform nil
             image img)
-      (com-zoom))))
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
 
 (define-spectacle-command (com-zoom :name t)
     ()
@@ -382,7 +357,7 @@
           (x-scale-slider (find-pane-named *application-frame* 'x-scale))
           (bounding-rectangle-height (bounding-rectangle-height viewer))
           (bounding-rectangle-width (bounding-rectangle-width viewer)))
-      (with-accessors ((image gadget-value)
+      (with-accessors ((image image)
                        (transform-parameters transform-parameters)
                        (transform transform))
           viewer
@@ -395,25 +370,29 @@
                     (gadget-value x-scale-slider) scale)
               (setf (elt transform-parameters 0) scale
                     (elt transform-parameters 1) scale
-                    transform nil)))
-          (setf image image))))))
+                    transform nil))
+            (change-space-requirements viewer :height oldy :width oldx))
+          (handle-repaint viewer (or (pane-viewport-region viewer)
+                                     (sheet-region viewer))))))))
 
 (define-spectacle-command (com-redraw :name t)
     ()
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
-    (handle-repaint viewer (sheet-region viewer))))
+    (handle-repaint viewer (or (pane-viewport-region viewer)
+                               (sheet-region viewer)))))
 
 (define-spectacle-command (com-reset :name t)
     ()
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
-    (with-accessors ((image gadget-value)
+    (with-accessors ((image image)
                      (transform-parameters transform-parameters)
                      (transform transform))
         viewer
       (reset-sliders)
       (reset-transform-parameters transform-parameters)
       (setf transform nil))
-    (handle-repaint viewer (sheet-region viewer))))
+    (handle-repaint viewer (or (pane-viewport-region viewer)
+                               (sheet-region viewer)))))
 
 (define-spectacle-command (com-quit :name t :keystroke (#\q :meta)) ()
   (frame-exit *application-frame*))
