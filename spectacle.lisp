@@ -13,10 +13,12 @@
   ((image :initarg :image :accessor image)
    (transform-parameters :accessor transform-parameters :initarg :transform-parameters)
    (transform :accessor transform :initarg :transform)
-   (lock-x-and-y-scale :accessor lock-x-and-y-scale :initarg :lock-x-and-y-scale))
+   (lock-x-and-y-scale :accessor lock-x-and-y-scale :initarg :lock-x-and-y-scale)
+   (clear-background-needed-p :accessor clear-background-needed-p :initarg :clear-background-needed-p))
   (:default-initargs :image nil
     :transform-parameters #(1d0 1d0 0d0 0d0 0d0 0d0 0d0)
     :lock-x-and-y-scale t
+    :clear-background-needed-p nil
     :transform nil))
 
 (defun y-scale-callback (gadget scale)
@@ -25,7 +27,8 @@
     (with-accessors ((image image)
                      (transform-parameters transform-parameters)
                      (transform transform)
-                     (lock-x-and-y-scale lock-x-and-y-scale))
+                     (lock-x-and-y-scale lock-x-and-y-scale)
+                     (clear-background-needed-p clear-background-needed-p))
         viewer
       (let ((y-scale-param 0)
             (x-scale-param 1))
@@ -35,7 +38,13 @@
               (setf (gadget-value x-scale-slider) scale
                     (elt transform-parameters x-scale-param) scale)))
           (setf (elt transform-parameters y-scale-param) scale
-                transform nil)
+                transform nil
+                ;; FIXME! This isn't strictly needed unless we're
+                ;; resizing the image to be smaller than the screen --
+                ;; we should fix this by clearing the screen in
+                ;; handle-repaint if we're not completely drawing over
+                ;; the viewport!
+                clear-background-needed-p t)
           (handle-repaint viewer (or (pane-viewport-region viewer)
                                      (sheet-region viewer))))))))
 
@@ -45,7 +54,8 @@
     (with-accessors ((image image)
                      (transform-parameters transform-parameters)
                      (transform transform)
-                     (lock-x-and-y-scale lock-x-and-y-scale))
+                     (lock-x-and-y-scale lock-x-and-y-scale)
+                     (clear-background-needed-p clear-background-needed-p))
         viewer
       (let ((y-scale-param 0)
             (x-scale-param 1))
@@ -55,7 +65,13 @@
               (setf (gadget-value y-scale-slider) scale
                     (elt transform-parameters y-scale-param) scale)))
           (setf (elt transform-parameters x-scale-param) scale
-                transform nil)
+                transform nil
+                ;; FIXME! This isn't strictly needed unless we're
+                ;; resizing the image to be smaller than the screen --
+                ;; we should fix this by clearing the screen in
+                ;; handle-repaint if we're not completely drawing over
+                ;; the viewport!
+                clear-background-needed-p t)
           (handle-repaint viewer (or (pane-viewport-region viewer)
                                      (sheet-region viewer))))))))
 
@@ -64,13 +80,16 @@
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
     (with-accessors ((image image)
                      (transform-parameters transform-parameters)
-                     (transform transform))
+                     (transform transform)
+                     (clear-background-needed-p clear-background-needed-p))
         viewer
       (let ((param 6)
             (rads (mod (* pi degrees (/ 180)) (* 2 pi))))
         (unless (equal (elt transform-parameters param) rads)
           (setf (elt transform-parameters param) rads
-                transform nil)
+                transform nil
+                clear-background-needed-p t)
+
           (handle-repaint viewer (or (pane-viewport-region viewer)
                                      (sheet-region viewer))))))))
 
@@ -79,12 +98,14 @@
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
     (with-accessors ((image image)
                      (transform-parameters transform-parameters)
-                     (transform transform))
+                     (transform transform)
+                     (clear-background-needed-p clear-background-needed-p))
         viewer
       (let ((param 4))
         (unless (equal (elt transform-parameters param) shear)
           (setf (elt transform-parameters param) shear
-                transform nil)
+                transform nil
+                clear-background-needed-p t)
           (handle-repaint viewer (or (pane-viewport-region viewer)
                                      (sheet-region viewer))))))))
 
@@ -93,12 +114,14 @@
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
     (with-accessors ((image image)
                      (transform-parameters transform-parameters)
-                     (transform transform))
+                     (transform transform)
+                     (clear-background-needed-p clear-background-needed-p))
         viewer
       (let ((param 5))
         (unless (equal (elt transform-parameters param) shear)
           (setf (elt transform-parameters param) shear
-                transform nil)
+                transform nil
+                clear-background-needed-p t)
           (handle-repaint viewer (or (pane-viewport-region viewer)
                                      (sheet-region viewer))))))))
 
@@ -129,7 +152,7 @@
             :value 1.0d0
             :show-value-p t
             :orientation :horizontal
-            :drag-callback #'y-scale-callback
+            :drag-callback 'y-scale-callback
             :value-changed-callback 'y-scale-callback)
    (x-scale :slider
             :min-value 0.1
@@ -138,7 +161,7 @@
             :value 1.0d0
             :show-value-p t
             :orientation :horizontal
-            :drag-callback #'x-scale-callback
+            :drag-callback 'x-scale-callback
             :value-changed-callback 'x-scale-callback)
    (theta :slider
           :min-value -180
@@ -147,7 +170,7 @@
           :value 0
           :show-value-p t
           :orientation :horizontal
-          :drag-callback #'theta-callback
+          :drag-callback 'theta-callback
           :value-changed-callback 'theta-callback)
    (y-shear :slider
             :min-value -5
@@ -156,7 +179,7 @@
             :value 0.0d0
             :show-value-p t
             :orientation :horizontal
-            :drag-callback #'y-shear-callback
+            :drag-callback 'y-shear-callback
             :value-changed-callback 'y-shear-callback)
    (x-shear :slider
             :min-value -5
@@ -165,7 +188,7 @@
             :value 0.0d0
             :show-value-p t
             :orientation :horizontal
-            :drag-callback #'x-shear-callback
+            :drag-callback 'x-shear-callback
             :value-changed-callback 'x-shear-callback)
    (reset-button :push-button
                  :label "Reset Parameters"
@@ -305,7 +328,8 @@
 (defmethod handle-repaint ((pane spectacle-pane) region)
   (with-accessors ((image image)
                    (transform-parameters transform-parameters)
-                   (transform transform))
+                   (transform transform)
+                   (clear-background-needed-p clear-background-needed-p))
       pane
     ;; Ok, we have 5 "regions" to consider here:
     ;;
@@ -363,9 +387,11 @@
                     ;; out what we're doing here, this will probably become
                     ;; +background-ink+ at some point.
                         
-                    (clim:draw-rectangle* (sheet-medium pane)
-                                          d-x1 d-y1 d-x2 d-y2
-                                          :ink +background-ink+)
+                    (when clear-background-needed-p
+                      (clim:draw-rectangle* (sheet-medium pane)
+                                            d-x1 d-y1 d-x2 d-y2
+                                            :ink +background-ink+)
+                      (setf clear-background-needed-p nil))
                     
                     ;; 5. Now we should be able to transform the image into
                     ;; the appropriately requested destination image and display that
