@@ -3,6 +3,7 @@
 
 (cl:defpackage :spectacle
   (:use #:clim-lisp #:clim #:opticl)
+  (:export #:spectacle)
   (:shadowing-import-from #:opticl
                           #:draw-line
                           #:draw-line*
