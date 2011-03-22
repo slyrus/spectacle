@@ -218,22 +218,90 @@
 
 (defun opticl-image-to-climi-rgb-pattern (image y x)
   (etypecase image
+
+    (8-bit-gray-image
+     (locally (declare (optimize (speed 3))
+                       (type 8-bit-gray-image image))
+       (let ((cimg (make-32-bit-gray-image y x)))
+         (declare (type 32-bit-gray-image cimg))
+         (set-pixels (i j) cimg
+           (let ((k (pixel image i j)))
+             (+ (ash k 0) (ash k 8) (ash k 16))))
+         (make-instance 'clim-internals::rgb-pattern
+                        :image (make-instance 'clim-internals::rgb-image
+                                              :height y
+                                              :width x
+                                              :data cimg)))))
+    (1-bit-gray-image
+     (locally (declare (optimize (speed 3))
+                       (type 1-bit-gray-image image))
+       (let ((cimg (make-32-bit-gray-image y x)))
+         (declare (type 32-bit-gray-image cimg))
+         (set-pixels (i j) cimg
+           (let ((k (* 255 (pixel image i j))))
+             (+ (ash k 0) (ash k 8) (ash k 16))))
+         (make-instance 'clim-internals::rgb-pattern
+                        :image (make-instance 'clim-internals::rgb-image
+                                              :height y
+                                              :width x
+                                              :data cimg)))))
     (8-bit-rgb-image
      (locally (declare (optimize (speed 3))
-                       (type 8-bit-rgb-image image)))
-     #+debug (print (list 'image-bounds y x) *trace-output*)
-     (let ((cimg (make-32-bit-gray-image y x)))
-       (declare (type 32-bit-gray-image cimg))
-       (set-pixels (i j) cimg
-         (multiple-value-bind (r g b)
-             (pixel image i j)
-           (+ (ash r 0) (ash g 8) (ash b 16))))
-       (make-instance 'clim-internals::rgb-pattern
-                      :image (make-instance 'clim-internals::rgb-image
-                                            :height y
-                                            :width x
-                                            :data cimg))))
-    ))
+                       (type 8-bit-rgb-image image))
+       (let ((cimg (make-32-bit-gray-image y x)))
+         (declare (type 32-bit-gray-image cimg))
+         (set-pixels (i j) cimg
+           (multiple-value-bind (r g b)
+               (pixel image i j)
+             (+ (ash r 0) (ash g 8) (ash b 16))))
+         (make-instance 'clim-internals::rgb-pattern
+                        :image (make-instance 'clim-internals::rgb-image
+                                              :height y
+                                              :width x
+                                              :data cimg)))))
+    (8-bit-rgba-image
+     (locally (declare (optimize (speed 3))
+                       (type 8-bit-rgba-image image))
+       (let ((cimg (make-32-bit-gray-image y x)))
+         (declare (type 32-bit-gray-image cimg))
+         (set-pixels (i j) cimg
+           (multiple-value-bind (r g b)
+               (pixel image i j)
+             (+ (ash r 0) (ash g 8) (ash b 16))))
+         (make-instance 'clim-internals::rgb-pattern
+                        :image (make-instance 'clim-internals::rgb-image
+                                              :height y
+                                              :width x
+                                              :data cimg)))))
+
+    (16-bit-rgb-image
+     (locally (declare (optimize (speed 3))
+                       (type 16-bit-rgb-image image))
+       (let ((cimg (make-32-bit-gray-image y x)))
+         (declare (type 32-bit-gray-image cimg))
+         (set-pixels (i j) cimg
+           (multiple-value-bind (r g b)
+               (pixel image i j)
+             (+ (ash (ash r -8) 0) (ash (ash g -8) 8) (ash (ash b -8) 16))))
+         (make-instance 'clim-internals::rgb-pattern
+                        :image (make-instance 'clim-internals::rgb-image
+                                              :height y
+                                              :width x
+                                              :data cimg)))))
+    (16-bit-rgba-image
+     (locally (declare (optimize (speed 3))
+                       (type 16-bit-rgba-image image))
+       (let ((cimg (make-32-bit-gray-image y x)))
+         (declare (type 32-bit-gray-image cimg))
+         (set-pixels (i j) cimg
+           (multiple-value-bind (r g b)
+               (pixel image i j)
+             (+ (ash (ash r -8) 0) (ash (ash g -8) 8) (ash (ash b -8) 16))))
+         (make-instance 'clim-internals::rgb-pattern
+                        :image (make-instance 'clim-internals::rgb-image
+                                              :height y
+                                              :width x
+                                              :data cimg)))))))
 
 (defmethod handle-repaint ((pane spectacle-pane) region)
   (with-accessors ((image image)
@@ -277,63 +345,56 @@
                   (b-width (abs (- b-x2 b-x1))))
               #+debug (print (list 'b b-y1 b-x1 b-y2 b-x2 b-height b-width) *trace-output*)
 
-              ;; 3. get the coordinates of the sheet (x1 and y1 should always be 0!)
-              (with-bounding-rectangle* (c-x1 c-y1 c-x2 c-y2)
-                  (sheet-region pane)
-                #+debug (print (list 'c c-y1 c-x1 c-y2 c-x2) *trace-output*)
-
-                ;; 4. get the coordinates of the pane
-                (with-bounding-rectangle* (d-x1 d-y1 d-x2 d-y2)
-                    (pane-viewport-region pane)
-                  (let ((d-height (- d-y2 d-y1))
-                        (d-width (- d-x2 d-x1)))
-                    #+debug (print (list 'd d-y1 d-x1 d-y2 d-x2) *trace-output*)
-
-                    (let ((e-y1 (+ d-y1 b-y1))
-                          (e-x1 (+ d-x1 b-x1))
-                          (e-y2 (min (+ d-y2 b-y1) (+ d-y1 b-y2)))
-                          (e-x2 (min (+ d-x2 b-x1) (+ d-x1 b-x2))))
-                      (let ((e-height (- e-y2 e-y1))
-                            (e-width (- e-x2 e-x1)))
-                        #+debug (print (list 'e e-y1 e-x1 e-y2 e-x2 e-height e-width) *trace-output*)
-                        (resize-sheet pane
-                                      (max d-x2 b-width)
-                                      (max d-y2 b-height))
-                        ;; 4A. fill the region with red so that we can figure
-                        ;; out what we're doing here, this will probably become
-                        ;; +background-ink+ at some point.
+              ;; 4. get the coordinates of the pane
+              (with-bounding-rectangle* (d-x1 d-y1 d-x2 d-y2)
+                  (pane-viewport-region pane)
+                (print (list 'd d-y1 d-x1 d-y2 d-x2) *trace-output*)
+                  
+                (let ((e-y1 (+ d-y1 b-y1))
+                      (e-x1 (+ d-x1 b-x1))
+                      (e-y2 (min (+ d-y2 b-y1) (+ d-y1 b-y2)))
+                      (e-x2 (min (+ d-x2 b-x1) (+ d-x1 b-x2))))
+                  (let ((e-height (- e-y2 e-y1))
+                        (e-width (- e-x2 e-x1)))
+                    #+debug (print (list 'e e-y1 e-x1 e-y2 e-x2 e-height e-width) *trace-output*)
+                    (resize-sheet pane
+                                  (max d-x2 b-width)
+                                  (max d-y2 b-height))
+                    ;; 4A. fill the region with red so that we can figure
+                    ;; out what we're doing here, this will probably become
+                    ;; +background-ink+ at some point.
                         
-                        (clim:draw-rectangle* (sheet-medium pane)
-                                              d-x1 d-y1 d-x2 d-y2
-                                              :ink +background-ink+)
+                    (clim:draw-rectangle* (sheet-medium pane)
+                                          d-x1 d-y1 d-x2 d-y2
+                                          :ink +background-ink+)
 
-                        ;; 5. Now we should be able to transform the image into
-                        ;; the appropriately requested destination image and display that
+                    ;; 5. Now we should be able to transform the image into
+                    ;; the appropriately requested destination image and display that
                         
-                        (let ((shift (make-affine-transformation
-                                      :y-shift (- b-y1)
-                                      :x-shift (- b-x1))))
+                    (let ((shift (make-affine-transformation
+                                  :y-shift (- b-y1)
+                                  :x-shift (- b-x1))))
                         
-                          (let ((transformed-image
-                                 (if transform
-                                     (transform-image image 
-                                                      (opticl::matrix-multiply
-                                                       shift transform)
-                                                      :y (cons d-y1 d-y2)
-                                                      :x (cons d-x1 d-x2))
-                                     #+nil
-                                     (transform-image image transform
-                                                      :y (cons e-y1 e-y2)
-                                                      :x (cons e-x1 e-x2))
-                                     image)))
-                            #+debug (print (array-dimensions transformed-image) *trace-output*)
-                            (let ((pattern
-                                   (opticl-image-to-climi-rgb-pattern
-                                    transformed-image (floor e-height) (floor e-width))))
-                              (clim:draw-pattern* pane pattern 
-                                                  (max d-x1 (/ (- d-x2 b-width) 2))
-                                                  (max d-y1 (/ (- d-y2 b-height) 2))))))))
-                    (change-space-requirements pane :height b-height :width b-width))))
+                      (let ((transformed-image
+                             (if transform
+                                 (transform-image image 
+                                                  (opticl::matrix-multiply
+                                                   shift transform)
+                                                  :y (cons d-y1 d-y2)
+                                                  :x (cons d-x1 d-x2))
+                                 #+nil
+                                 (transform-image image transform
+                                                  :y (cons e-y1 e-y2)
+                                                  :x (cons e-x1 e-x2))
+                                 image)))
+                        #+debug (print (array-dimensions transformed-image) *trace-output*)
+                        (let ((pattern
+                               (opticl-image-to-climi-rgb-pattern
+                                transformed-image (floor e-height) (floor e-width))))
+                          (clim:draw-pattern* pane pattern 
+                                              (max d-x1 (/ (- d-x2 b-width) 2))
+                                              (max d-y1 (/ (- d-y2 b-height) 2))))))))
+                (change-space-requirements pane :height b-height :width b-width))
               #+debug
               (loop for i below b-height by 100
                  do (clim:draw-line* pane 0 i b-width i :ink +yellow+))
