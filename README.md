@@ -33,6 +33,11 @@ command such as the following:
 
     (asdf:load-system 'mcclim-truetype)
 
+which requires the following libraries: zpb-ttf, cl-vectors,
+cl-paths-ttf, and cl-aa. These can be installed thusly:
+
+    (ql:quickload '(zpb-ttf cl-vectors cl-paths-ttf cl-aa))
+
 Then launch spectacle as above.
 
 Spectacle supports reading and writing images in the file formats
