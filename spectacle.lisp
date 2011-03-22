@@ -269,61 +269,77 @@
       (with-image-bounds (a-height a-width) 
           image
         #+debug (print (list 'a a-height a-width) *trace-output*)
-
+        (updating-output (pane :unique-id image)
         ;; 2. compute the coordinates and dimension of the transformed image
-        (multiple-value-bind (b-y1 b-x1 b-y2 b-x2)
-            (opticl::compute-bounds 0 0 a-height a-width transform)
-          (let ((b-height (abs (- b-y2 b-y1)))
-                (b-width (abs (- b-x2 b-x1))))
-            #+debug (print (list 'b b-y1 b-x1 b-y2 b-x2 b-height b-width) *trace-output*)
+          (multiple-value-bind (b-y1 b-x1 b-y2 b-x2)
+              (opticl::compute-bounds 0 0 a-height a-width transform)
+            (let ((b-height (abs (- b-y2 b-y1)))
+                  (b-width (abs (- b-x2 b-x1))))
+              #+debug (print (list 'b b-y1 b-x1 b-y2 b-x2 b-height b-width) *trace-output*)
 
-            ;; 2A. change the size of the pane to fit the transformed image
-            
+              ;; 3. get the coordinates of the sheet (x1 and y1 should always be 0!)
+              (with-bounding-rectangle* (c-x1 c-y1 c-x2 c-y2)
+                  (sheet-region pane)
+                #+debug (print (list 'c c-y1 c-x1 c-y2 c-x2) *trace-output*)
 
-            ;; 3. get the coordinates of the sheet (x1 and y1 should always be 0!)
-            (with-bounding-rectangle* (c-x1 c-y1 c-x2 c-y2)
-                (sheet-region pane)
-              #+debug (print (list 'c c-y1 c-x1 c-y2 c-x2) *trace-output*)
+                ;; 4. get the coordinates of the pane
+                (with-bounding-rectangle* (d-x1 d-y1 d-x2 d-y2)
+                    (pane-viewport-region pane)
+                  (let ((d-height (- d-y2 d-y1))
+                        (d-width (- d-x2 d-x1)))
+                    #+debug (print (list 'd d-y1 d-x1 d-y2 d-x2) *trace-output*)
 
-              ;; 4. get the coordinates of the pane
-              (with-bounding-rectangle* (d-x1 d-y1 d-x2 d-y2)
-                  (pane-viewport-region pane)
-                #+debug (print (list 'd d-y1 d-x1 d-y2 d-x2) *trace-output*)
+                    (let ((e-y1 (+ d-y1 b-y1))
+                          (e-x1 (+ d-x1 b-x1))
+                          (e-y2 (min (+ d-y2 b-y1) (+ d-y1 b-y2)))
+                          (e-x2 (min (+ d-x2 b-x1) (+ d-x1 b-x2))))
+                      (let ((e-height (- e-y2 e-y1))
+                            (e-width (- e-x2 e-x1)))
+                        #+debug (print (list 'e e-y1 e-x1 e-y2 e-x2 e-height e-width) *trace-output*)
+                        (resize-sheet pane
+                                      (max d-x2 b-width)
+                                      (max d-y2 b-height))
+                        ;; 4A. fill the region with red so that we can figure
+                        ;; out what we're doing here, this will probably become
+                        ;; +background-ink+ at some point.
+                        
+                        (clim:draw-rectangle* (sheet-medium pane)
+                                              d-x1 d-y1 d-x2 d-y2
+                                              :ink +background-ink+)
 
-                (let ((e-y1 (+ d-y1 b-y1))
-                      (e-x1 (+ d-x1 b-x1))
-                      (e-y2 (min (+ d-y2 b-y1) (+ d-y1 b-y2)))
-                      (e-x2 (min (+ d-x2 b-x1) (+ d-x1 b-x2))))
-                  (let ((e-height (- e-y2 e-y1))
-                        (e-width (- e-x2 e-x1)))
-                    #+debug (print (list 'e e-y1 e-x1 e-y2 e-x2 e-height e-width) *trace-output*)
-                              
-                    (resize-sheet pane
-                                  (max d-x2 b-width)
-                                  (max d-y2 b-height))
-                    ;; 4A. fill the region with red so that we can figure
-                    ;; out what we're doing here, this will probably become
-                    ;; +background-ink+ at some point.
-                    (clim:draw-rectangle* (sheet-medium pane)
-                                          d-x1 d-y1 d-x2 d-y2
-                                          :ink +background-ink+)
-              
-
-                    ;; 5. Now we should be able to transform the image into
-                    ;; the appropriately requested destination image and display that
-                    (let ((transformed-image (if transform
-                                                 (transform-image image transform
-                                                                  :y (cons e-y1 e-y2)
-                                                                  :x (cons e-x1 e-x2))
-                                                 image)))
-                      #+debug (print (array-dimensions transformed-image) *trace-output*)
-                      (let ((pattern
-                             (opticl-image-to-climi-rgb-pattern
-                              transformed-image (ceiling e-height) (ceiling e-width))))
-                        (clim:draw-pattern* pane pattern 
-                                            (max 0 (/ (- d-x2 b-width) 2))
-                                            (max 0 (/ (- d-y2 b-height) 2))))))))
-              #+nil (change-space-requirements pane :height b-height :width b-width))))))))
+                        ;; 5. Now we should be able to transform the image into
+                        ;; the appropriately requested destination image and display that
+                        
+                        (let ((shift (make-affine-transformation
+                                      :y-shift (- b-y1)
+                                      :x-shift (- b-x1))))
+                        
+                          (let ((transformed-image
+                                 (if transform
+                                     (transform-image image 
+                                                      (opticl::matrix-multiply
+                                                       shift transform)
+                                                      :y (cons d-y1 d-y2)
+                                                      :x (cons d-x1 d-x2))
+                                     #+nil
+                                     (transform-image image transform
+                                                      :y (cons e-y1 e-y2)
+                                                      :x (cons e-x1 e-x2))
+                                     image)))
+                            #+debug (print (array-dimensions transformed-image) *trace-output*)
+                            (let ((pattern
+                                   (opticl-image-to-climi-rgb-pattern
+                                    transformed-image (floor e-height) (floor e-width))))
+                              (clim:draw-pattern* pane pattern 
+                                                  (max d-x1 (/ (- d-x2 b-width) 2))
+                                                  (max d-y1 (/ (- d-y2 b-height) 2))))))))
+                    (change-space-requirements pane :height b-height :width b-width))))
+              #+debug
+              (loop for i below b-height by 100
+                 do (clim:draw-line* pane 0 i b-width i :ink +yellow+))
+              #+debug
+              (loop for j below b-width by 100
+                 do (clim:draw-line* pane j 0 j b-height :ink +red+)))))))))
 
 (defun spectacle (&key (new-process t))
   (flet ((run ()
