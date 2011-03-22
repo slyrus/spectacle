@@ -348,7 +348,7 @@
               ;; 4. get the coordinates of the pane
               (with-bounding-rectangle* (d-x1 d-y1 d-x2 d-y2)
                   (pane-viewport-region pane)
-                (print (list 'd d-y1 d-x1 d-y2 d-x2) *trace-output*)
+                #+debug (print (list 'd d-y1 d-x1 d-y2 d-x2) *trace-output*)
                   
                 (let ((e-y1 (+ d-y1 b-y1))
                       (e-x1 (+ d-x1 b-x1))
@@ -452,14 +452,28 @@
           (handle-repaint viewer (or (pane-viewport-region viewer)
                                      (sheet-region viewer))))))))
 
-(define-spectacle-command (com-redraw :name t)
-    ()
+(define-spectacle-command (com-redraw :name t) ()
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
     (handle-repaint viewer (or (pane-viewport-region viewer)
                                (sheet-region viewer)))))
 
-(define-spectacle-command (com-reset :name t)
-    ()
+(define-spectacle-command (com-blur :name t) ()
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
+    (with-accessors ((image image))
+        viewer
+      (setf image (blur-image image))
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
+
+(define-spectacle-command (com-sharpen :name t) ()
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
+    (with-accessors ((image image))
+        viewer
+      (setf image (sharpen-image image))
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
+
+(define-spectacle-command (com-reset :name t) ()
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
     (with-accessors ((image image)
                      (transform-parameters transform-parameters)
@@ -482,6 +496,8 @@
 (make-command-table 'image-command-table
 		    :errorp nil
 		    :menu '(("Zoom" :command com-zoom)
+                            ("Blur" :command com-blur)
+                            ("Sharpen" :command com-sharpen)
                             ("Redraw" :command com-redraw)
                             ("Reset" :command com-reset)))
 
