@@ -426,6 +426,15 @@
       (handle-repaint viewer (or (pane-viewport-region viewer)
                                  (sheet-region viewer))))))
 
+(define-spectacle-command (com-save-image :name t)
+    ((image-pathname 'pathname
+                     :default (user-homedir-pathname)
+                     :insert-default t))
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
+    (with-accessors ((image image))
+        viewer
+      (write-image-file image-pathname image))))
+
 (define-spectacle-command (com-fit-image-to-window :name t)
     ()
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
@@ -492,6 +501,7 @@
 (make-command-table 'file-command-table
 		    :errorp nil
 		    :menu '(("Load Image" :command com-load-image)
+                            ("Save Image" :command com-save-image)
                             ("Quit" :command com-quit)))
 
 (make-command-table 'image-command-table
