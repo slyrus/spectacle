@@ -335,19 +335,19 @@
     (when image
       (with-image-bounds (a-height a-width) 
           image
-        #+debug (print (list 'a a-height a-width) *trace-output*)
+        #+(or) (print (list 'a a-height a-width) *trace-output*)
         (updating-output (pane :unique-id image)
         ;; 2. compute the coordinates and dimension of the transformed image
           (multiple-value-bind (b-y1 b-x1 b-y2 b-x2)
               (opticl::compute-bounds 0 0 a-height a-width transform)
             (let ((b-height (abs (- b-y2 b-y1)))
                   (b-width (abs (- b-x2 b-x1))))
-              #+debug (print (list 'b b-y1 b-x1 b-y2 b-x2 b-height b-width) *trace-output*)
+              #+(or) (print (list 'b b-y1 b-x1 b-y2 b-x2 b-height b-width) *trace-output*)
 
               ;; 4. get the coordinates of the pane
               (with-bounding-rectangle* (d-x1 d-y1 d-x2 d-y2)
                   (pane-viewport-region pane)
-                #+debug (print (list 'd d-y1 d-x1 d-y2 d-x2) *trace-output*)
+                #+(or) (print (list 'd d-y1 d-x1 d-y2 d-x2) *trace-output*)
                   
                 (let ((e-y1 (+ d-y1 b-y1))
                       (e-x1 (+ d-x1 b-x1))
@@ -355,7 +355,7 @@
                       (e-x2 (min (+ d-x2 b-x1) (+ d-x1 b-x2))))
                   (let ((e-height (- e-y2 e-y1))
                         (e-width (- e-x2 e-x1)))
-                    #+debug (print (list 'e e-y1 e-x1 e-y2 e-x2 e-height e-width) *trace-output*)
+                    #+(or) (print (list 'e e-y1 e-x1 e-y2 e-x2 e-height e-width) *trace-output*)
                     (resize-sheet pane
                                   (max d-x2 b-width)
                                   (max d-y2 b-height))
@@ -366,7 +366,7 @@
                     (clim:draw-rectangle* (sheet-medium pane)
                                           d-x1 d-y1 d-x2 d-y2
                                           :ink +background-ink+)
-
+                    
                     ;; 5. Now we should be able to transform the image into
                     ;; the appropriately requested destination image and display that
                         
@@ -375,18 +375,12 @@
                                   :x-shift (- b-x1))))
                         
                       (let ((transformed-image
-                             (if transform
-                                 (transform-image image 
-                                                  (opticl::matrix-multiply
-                                                   shift transform)
-                                                  :y (cons d-y1 d-y2)
-                                                  :x (cons d-x1 d-x2))
-                                 #+nil
-                                 (transform-image image transform
-                                                  :y (cons e-y1 e-y2)
-                                                  :x (cons e-x1 e-x2))
-                                 image)))
-                        #+debug (print (array-dimensions transformed-image) *trace-output*)
+                             (transform-image image 
+                                              (opticl::matrix-multiply
+                                               shift transform)
+                                              :y (cons d-y1 d-y2)
+                                              :x (cons d-x1 d-x2))))
+                        #+(or) (print (array-dimensions transformed-image) *trace-output*)
                         (let ((pattern
                                (opticl-image-to-climi-rgb-pattern
                                 transformed-image (floor e-height) (floor e-width))))
@@ -394,10 +388,10 @@
                                               (max d-x1 (/ (- d-x2 b-width) 2))
                                               (max d-y1 (/ (- d-y2 b-height) 2))))))))
                 (change-space-requirements pane :height b-height :width b-width))
-              #+debug
+              #+(or)
               (loop for i below b-height by 100
                  do (clim:draw-line* pane 0 i b-width i :ink +yellow+))
-              #+debug
+              #+(or)
               (loop for j below b-width by 100
                  do (clim:draw-line* pane j 0 j b-height :ink +red+)))))))))
 
