@@ -109,7 +109,6 @@
    (viewer (scrolling ()
              (make-pane 'spectacle-pane
                         :name 'spectacle-pane
-                        :width 500
                         :incremental-redisplay t
                         :background +black+
                         :foreground +white+)))
@@ -178,9 +177,9 @@
                :min-height 100))
   (:layouts
    (default (vertically (:height 250)
-              (4/5 (horizontally ()
-                     (4/5 viewer)
-                     (1/5 (vertically ()
+              (4/5 (horizontally (:width 600)
+                     (5/6 viewer)
+                     (1/6 (vertically ()
                             (labelling ()
                               (vertically ()
                                 lock-scale
@@ -427,30 +426,32 @@
       (handle-repaint viewer (or (pane-viewport-region viewer)
                                  (sheet-region viewer))))))
 
-(define-spectacle-command (com-zoom :name t)
+(define-spectacle-command (com-fit-image-to-window :name t)
     ()
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
-    (let ((y-scale-slider (find-pane-named *application-frame* 'y-scale))
-          (x-scale-slider (find-pane-named *application-frame* 'x-scale))
-          (bounding-rectangle-height (bounding-rectangle-height viewer))
-          (bounding-rectangle-width (bounding-rectangle-width viewer)))
-      (with-accessors ((image image)
-                       (transform-parameters transform-parameters)
-                       (transform transform))
-          viewer
-        (when image
-          (with-image-bounds (oldy oldx) image
-            (let ((scale (apply #'min
-                                (append (list (/ bounding-rectangle-height oldy))
-                                        (list (/ bounding-rectangle-width oldx))))))
-              (setf (gadget-value y-scale-slider) scale
-                    (gadget-value x-scale-slider) scale)
-              (setf (elt transform-parameters 0) scale
-                    (elt transform-parameters 1) scale
-                    transform nil))
-            (change-space-requirements viewer :height oldy :width oldx))
-          (handle-repaint viewer (or (pane-viewport-region viewer)
-                                     (sheet-region viewer))))))))
+    (when viewer
+      (let ((y-scale-slider (find-pane-named *application-frame* 'y-scale))
+            (x-scale-slider (find-pane-named *application-frame* 'x-scale))
+            (pvr (pane-viewport-region viewer)))
+        (let ((bounding-rectangle-height (bounding-rectangle-height pvr))
+              (bounding-rectangle-width (bounding-rectangle-width pvr)))
+          (with-accessors ((image image)
+                           (transform-parameters transform-parameters)
+                           (transform transform))
+              viewer
+            (when image
+              (with-image-bounds (oldy oldx) image
+                (let ((scale (apply #'min
+                                    (append (list (/ bounding-rectangle-height oldy))
+                                            (list (/ bounding-rectangle-width oldx))))))
+                  (setf (gadget-value y-scale-slider) scale
+                        (gadget-value x-scale-slider) scale)
+                  (setf (elt transform-parameters 0) scale
+                        (elt transform-parameters 1) scale
+                        transform nil))
+                (change-space-requirements viewer :height oldy :width oldx))
+              (handle-repaint viewer (or (pane-viewport-region viewer)
+                                         (sheet-region viewer))))))))))
 
 (define-spectacle-command (com-redraw :name t) ()
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
@@ -495,7 +496,7 @@
 
 (make-command-table 'image-command-table
 		    :errorp nil
-		    :menu '(("Zoom" :command com-zoom)
+		    :menu '(("Fit Image to Window" :command com-fit-image-to-window)
                             ("Blur" :command com-blur)
                             ("Sharpen" :command com-sharpen)
                             ("Redraw" :command com-redraw)
