@@ -14,12 +14,15 @@
    (transform-parameters :accessor transform-parameters :initarg :transform-parameters)
    (transform :accessor transform :initarg :transform)
    (lock-x-and-y-scale :accessor lock-x-and-y-scale :initarg :lock-x-and-y-scale)
-   (clear-background-needed-p :accessor clear-background-needed-p :initarg :clear-background-needed-p))
+   (clear-background-needed-p :accessor clear-background-needed-p
+                              :initarg :clear-background-needed-p)
+   (filters :accessor filters :initarg :filters))
   (:default-initargs :image nil
     :transform-parameters #(1d0 1d0 0d0 0d0 0d0 0d0 0d0)
     :lock-x-and-y-scale t
     :clear-background-needed-p nil
-    :transform nil))
+    :transform nil
+    :filters nil))
 
 (defun y-scale-callback (gadget scale)
   (declare (ignore gadget))
@@ -329,7 +332,8 @@
   (with-accessors ((image image)
                    (transform-parameters transform-parameters)
                    (transform transform)
-                   (clear-background-needed-p clear-background-needed-p))
+                   (clear-background-needed-p clear-background-needed-p)
+                   (filters filters))
       pane
     ;; Ok, we have 5 "regions" to consider here:
     ;;
@@ -415,12 +419,14 @@
                                (transform-image image 
                                                 (opticl::matrix-multiply
                                                  shift transform)
-                                                :y (cons d-y1 d-y2)
-                                                :x (cons d-x1 d-x2))))
+                                                :post-y-bounds (cons d-y1 d-y2)
+                                                :post-x-bounds (cons d-x1 d-x2))))
                           #+(or) (print (array-dimensions transformed-image) *trace-output*)
                           (let ((pattern
                                  (opticl-image-to-climi-rgb-pattern
-                                  transformed-image (floor e-height) (floor e-width))))
+                                  (reduce (lambda (a b) (funcall b a))
+                                          (cons transformed-image filters))
+                                  (floor e-height) (floor e-width))))
                             (clim:draw-pattern* pane pattern 
                                                 (max d-x1 (/ (- d-x2 b-width) 2))
                                                 (max d-y1 (/ (- d-y2 b-height) 2))))))))
@@ -477,7 +483,8 @@
               (bounding-rectangle-width (bounding-rectangle-width pvr)))
           (with-accessors ((image image)
                            (transform-parameters transform-parameters)
-                           (transform transform))
+                           (transform transform)
+                           (clear-background-needed-p clear-background-needed-p))
               viewer
             (when image
               (with-image-bounds (oldy oldx) image
@@ -488,6 +495,7 @@
                         (gadget-value x-scale-slider) scale)
                   (setf (elt transform-parameters 0) scale
                         (elt transform-parameters 1) scale
+                        clear-background-needed-p t
                         transform nil))
                 (change-space-requirements viewer :height oldy :width oldx))
               (handle-repaint viewer (or (pane-viewport-region viewer)
@@ -506,11 +514,49 @@
       (handle-repaint viewer (or (pane-viewport-region viewer)
                                  (sheet-region viewer))))))
 
+(define-spectacle-command (com-add-blur-filter :name t) ()
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
+    (with-accessors ((image image)
+                     (filters filters))
+        viewer
+      (push #'blur-image filters)
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
+
+(define-spectacle-command (com-add-sharpen-filter :name t) ()
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
+    (with-accessors ((image image)
+                     (filters filters))
+        viewer
+      (push #'sharpen-image filters)
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
+
+(define-spectacle-command (com-remove-filter :name t) ()
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
+    (with-accessors ((image image)
+                     (filters filters))
+        viewer
+      (pop filters)
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
+
 (define-spectacle-command (com-sharpen :name t) ()
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
     (with-accessors ((image image))
         viewer
       (setf image (sharpen-image image))
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
+
+(define-spectacle-command (com-apply-gamma :name t)
+    ((gamma 'number
+            :default 1.0
+            :insert-default t))
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
+    (with-accessors ((image image))
+        viewer
+      (setf image (apply-gamma image gamma))
       (handle-repaint viewer (or (pane-viewport-region viewer)
                                  (sheet-region viewer))))))
 
@@ -540,6 +586,7 @@
 		    :menu '(("Fit Image to Window" :command com-fit-image-to-window)
                             ("Blur" :command com-blur)
                             ("Sharpen" :command com-sharpen)
+                            ("Apply Gamma" :command com-apply-gamma)
                             ("Redraw" :command com-redraw)
                             ("Reset" :command com-reset)))
 
@@ -547,3 +594,19 @@
 		    :errorp nil
 		    :menu '(("File" :menu file-command-table)
                             ("Image" :menu image-command-table)))
+
+
+(define-spectacle-command (com-display-image-from-symbol :name t)
+    ((image-symbol 'symbol))
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane))
+        (img (symbol-value image-symbol)))
+    (with-accessors ((image image)
+                     (transform-parameters transform-parameters)
+                     (transform transform))
+        viewer
+      (reset-sliders)
+      (reset-transform-parameters transform-parameters)
+      (setf transform nil
+            image img)
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
