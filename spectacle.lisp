@@ -559,6 +559,39 @@
       (handle-repaint viewer (or (pane-viewport-region viewer)
                                  (sheet-region viewer))))))
 
+(define-spectacle-command (com-transpose :name t)
+    ()
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
+    (with-accessors ((image image)
+                     (clear-background-needed-p clear-background-needed-p))
+        viewer
+      (setf image (opticl::transpose-image image)
+            clear-background-needed-p t)
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
+
+(define-spectacle-command (com-horizontal-flip :name t)
+    ()
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
+    (with-accessors ((image image)
+                     (clear-background-needed-p clear-background-needed-p))
+        viewer
+      (setf image (opticl::horizontal-flip-image image)
+            clear-background-needed-p t)
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
+
+(define-spectacle-command (com-vertical-flip :name t)
+    ()
+  (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
+    (with-accessors ((image image)
+                     (clear-background-needed-p clear-background-needed-p))
+        viewer
+      (setf image (opticl::vertical-flip-image image)
+            clear-background-needed-p t)
+      (handle-repaint viewer (or (pane-viewport-region viewer)
+                                 (sheet-region viewer))))))
+
 (define-spectacle-command (com-reset :name t) ()
   (let ((viewer (find-pane-named *application-frame* 'spectacle-pane)))
     (with-accessors ((image image)
